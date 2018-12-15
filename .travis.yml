@@ -17,6 +17,7 @@ script:
   - go get -u github.com/spf13/afero
   - go test -v -race ./...
   - make travis-build
+  - which go
 
 stages:
   - test
