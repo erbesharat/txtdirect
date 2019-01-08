@@ -1,0 +1,14 @@
+steps:
+- name: 'gcr.io/erfanb-223517/make'
+  args: ['build']
+  env:
+  - 'PROJECT_ROOT=github.com/erbesharat/txtdirect'
+  - 'GOPATH=/workspace'
+  dir: 'src/github.com/erbesharat/txtdirect'
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'gcr.io/$PROJECT_ID/$REPO_NAME:$COMMIT_SHA', '.']
+  env:
+  - 'PROJECT_ROOT=github.com/erbesharat/txtdirect'
+  - 'GOPATH=/workspace'
+
+images: ['gcr.io/$PROJECT_ID/$REPO_NAME:$COMMIT_SHA']
