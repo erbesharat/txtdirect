@@ -41,6 +41,7 @@ func parse(c *caddy.Controller) (txtdirect.Config, error) {
 	var resolver string
 	var gomods txtdirect.Gomods
 	var prometheus txtdirect.Prometheus
+	var tor txtdirect.Tor
 
 	c.Next() // skip directive name
 	for c.NextBlock() {
@@ -117,6 +118,21 @@ func parse(c *caddy.Controller) (txtdirect.Config, error) {
 				}
 			}
 
+		case "tor":
+			tor.Enable = true
+			c.NextArg()
+			if c.Val() != "{" {
+				continue
+			}
+			for c.Next() {
+				if c.Val() == "}" {
+					break
+				}
+				if err := tor.ParseTor(c); err != nil {
+					return txtdirect.Config{}, err
+				}
+			}
+
 		default:
 			return txtdirect.Config{}, c.ArgErr() // unhandled option
 		}
@@ -127,11 +143,14 @@ func parse(c *caddy.Controller) (txtdirect.Config, error) {
 		enable = allOptions
 	}
 
-	if gomods.Enable == true {
+	if gomods.Enable {
 		gomods.SetDefaults()
 	}
-	if prometheus.Enable == true {
+	if prometheus.Enable {
 		prometheus.SetDefaults()
+	}
+	if tor.Enable {
+		tor.SetDefaults()
 	}
 
 	config := txtdirect.Config{
@@ -140,6 +159,7 @@ func parse(c *caddy.Controller) (txtdirect.Config, error) {
 		Resolver:   resolver,
 		Gomods:     gomods,
 		Prometheus: prometheus,
+		Tor:        tor,
 	}
 
 	return config, nil

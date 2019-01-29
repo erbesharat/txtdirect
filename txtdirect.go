@@ -55,6 +55,7 @@ type Config struct {
 	Resolver   string
 	Gomods     Gomods
 	Prometheus Prometheus
+	Tor        Tor
 }
 
 // Parse takes a string containing the DNS TXT record and returns

@@ -5,10 +5,15 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/cretz/bine/tor"
+	"github.com/mholt/caddy"
 )
+
+// DefaultOnionServicePort is the port used to serve the onion service on
+const DefaultOnionServicePort = 4242
 
 // Tor type config struct
 type Tor struct {
@@ -59,5 +64,29 @@ func (t *Tor) Stop() {
 
 	if err := t.onion.Close(); err != nil {
 		log.Fatalf("[txtdirect]: Couldn't stop the onion service. %s", err.Error())
+	}
+}
+
+// ParseTor parses the txtdirect config for Tor proxy
+func (t *Tor) ParseTor(c *caddy.Controller) error {
+	switch c.Val() {
+	case "port":
+		value, err := strconv.Atoi(c.RemainingArgs()[0])
+		if err != nil {
+			return fmt.Errorf("The given value for port field is not standard. It should an integer")
+		}
+		t.Port = value
+
+	default:
+		return c.ArgErr() // unhandled option for tor
+	}
+	return nil
+}
+
+// SetDefaults sets the default values for prometheus config
+// if the fields are empty
+func (t *Tor) SetDefaults() {
+	if t.Port == 0 {
+		t.Port = DefaultOnionServicePort
 	}
 }
