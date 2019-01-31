@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
 	"github.com/cretz/bine/tor"
 	"github.com/mholt/caddy"
+	"github.com/mholt/caddy/caddyhttp/proxy"
 )
 
 // DefaultOnionServicePort is the port used to serve the onion service on
@@ -25,7 +27,7 @@ type Tor struct {
 	onion           *tor.OnionService
 }
 
-func (t *Tor) Start() {
+func (t *Tor) Start(c *caddy.Controller) {
 	torInstance, err := tor.Start(nil, nil)
 	if err != nil {
 		log.Panicf("Unable to start Tor: %v", err)
@@ -42,29 +44,41 @@ func (t *Tor) Start() {
 	t.onion = onion
 
 	errCh := make(chan error, 1)
-	// TODO: change the http listener to proxy the request instead of serving current dir
-	go func() { errCh <- http.Serve(onion, http.FileServer(http.Dir("."))) }()
-	// End when enter is pressed
-	go func() {
-		fmt.Scanln()
-		errCh <- nil
-	}()
+	go func() { errCh <- http.Serve(onion, http.RedirectHandler("https://google.com", 200)) }()
 	if err = <-errCh; err != nil {
 		log.Panicf("Failed serving: %v", err)
 	}
 }
 
 // Stop stops the tor instance, context listener and the onion service
-func (t *Tor) Stop() {
+func (t *Tor) Stop() error {
 	if err := t.instance.Close(); err != nil {
-		log.Fatalf("[txtdirect]: Couldn't close the tor instance. %s", err.Error())
+		return fmt.Errorf("[txtdirect]: Couldn't close the tor instance. %s", err.Error())
 	}
 
 	t.contextCanceler()
 
 	if err := t.onion.Close(); err != nil {
-		log.Fatalf("[txtdirect]: Couldn't stop the onion service. %s", err.Error())
+		return fmt.Errorf("[txtdirect]: Couldn't stop the onion service. %s", err.Error())
 	}
+	return nil
+}
+
+// Proxy redirects the request to the local onion serivce and the actual proxying
+// happens inside onion service's http handler
+func (t *Tor) Proxy(w http.ResponseWriter, r *http.Request, rec record, c Config) error {
+	log.Println("=== It comes into Proxy method ===")
+	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", t.Port))
+	if err != nil {
+		return err
+	}
+
+	reverseProxy := proxy.NewSingleHostReverseProxy(u, "", proxyKeepalive, proxyTimeout, fallbackDelay)
+
+	if err := reverseProxy.ServeHTTP(w, r, nil); err != nil {
+		return fmt.Errorf("[txtdirect]: Coudln't proxy the request to the background onion service. %s", err.Error())
+	}
+	return nil
 }
 
 // ParseTor parses the txtdirect config for Tor proxy

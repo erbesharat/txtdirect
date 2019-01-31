@@ -185,6 +185,14 @@ func setup(c *caddy.Controller) error {
 		config.Prometheus.Setup(c)
 	}
 
+	if config.Tor.Enable {
+		go config.Tor.Start(c)
+	}
+
+	c.OnShutdown(func() error {
+		return config.Tor.Stop()
+	})
+
 	return nil
 }
 
