@@ -11,7 +11,8 @@ import (
 
 	"github.com/cretz/bine/tor"
 	"github.com/mholt/caddy"
-	"github.com/mholt/caddy/caddyhttp/proxy"
+	cproxy "github.com/mholt/caddy/caddyhttp/proxy"
+	"golang.org/x/net/proxy"
 )
 
 // DefaultOnionServicePort is the port used to serve the onion service on
@@ -21,6 +22,7 @@ const DefaultOnionServicePort = 4242
 type Tor struct {
 	Enable bool
 	Port   int
+	To     string
 
 	instance        *tor.Tor
 	contextCanceler context.CancelFunc
@@ -28,26 +30,23 @@ type Tor struct {
 }
 
 func (t *Tor) Start(c *caddy.Controller) {
-	torInstance, err := tor.Start(nil, nil)
+	torInstance, err := tor.Start(nil, &tor.StartConf{
+		NoAutoSocksPort: true,
+		ExtraArgs:       []string{"--SocksPort", strconv.Itoa(t.Port)},
+	})
 	if err != nil {
 		log.Panicf("Unable to start Tor: %v", err)
 	}
-	t.instance = torInstance
 
-	listenCtx, listenCancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	t.contextCanceler = listenCancel
+	listenCtx, _ := context.WithTimeout(context.Background(), 3*time.Minute)
 
-	onion, err := torInstance.Listen(listenCtx, &tor.ListenConf{Version3: true, LocalPort: t.Port})
+	onion, err := torInstance.Listen(listenCtx, &tor.ListenConf{LocalPort: 8868, RemotePorts: []int{80}})
 	if err != nil {
-		log.Panicf("Unable to create onion service: %v", err)
+		log.Panicf("Unable to start onion service: %v", err)
 	}
 	t.onion = onion
 
-	errCh := make(chan error, 1)
-	go func() { errCh <- http.Serve(onion, http.RedirectHandler("https://google.com", 200)) }()
-	if err = <-errCh; err != nil {
-		log.Panicf("Failed serving: %v", err)
-	}
+	t.instance = torInstance
 }
 
 // Stop stops the tor instance, context listener and the onion service
@@ -55,29 +54,33 @@ func (t *Tor) Stop() error {
 	if err := t.instance.Close(); err != nil {
 		return fmt.Errorf("[txtdirect]: Couldn't close the tor instance. %s", err.Error())
 	}
-
-	t.contextCanceler()
-
-	if err := t.onion.Close(); err != nil {
-		return fmt.Errorf("[txtdirect]: Couldn't stop the onion service. %s", err.Error())
-	}
+	t.onion.Close()
 	return nil
 }
 
 // Proxy redirects the request to the local onion serivce and the actual proxying
 // happens inside onion service's http handler
 func (t *Tor) Proxy(w http.ResponseWriter, r *http.Request, rec record, c Config) error {
-	log.Println("=== It comes into Proxy method ===")
-	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", t.Port))
+	u, err := url.Parse(fmt.Sprintf("http://%s", rec.To))
 	if err != nil {
 		return err
 	}
 
-	reverseProxy := proxy.NewSingleHostReverseProxy(u, "", proxyKeepalive, proxyTimeout, fallbackDelay)
+	// Create a socks5 dialer
+	dialer, err := proxy.SOCKS5("tcp", fmt.Sprintf("127.0.0.1:%d", t.Port), nil, proxy.Direct)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	reverseProxy := cproxy.NewSingleHostReverseProxy(u, "", proxyKeepalive, proxyTimeout, fallbackDelay)
+	reverseProxy.Transport = &http.Transport{
+		Dial: dialer.Dial,
+	}
 
 	if err := reverseProxy.ServeHTTP(w, r, nil); err != nil {
 		return fmt.Errorf("[txtdirect]: Coudln't proxy the request to the background onion service. %s", err.Error())
 	}
+
 	return nil
 }
 

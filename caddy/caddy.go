@@ -18,6 +18,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
 
 	lumberjack "gopkg.in/natefinch/lumberjack.v2"
 
@@ -25,6 +26,8 @@ import (
 	"github.com/mholt/caddy/caddyhttp/httpserver"
 	"github.com/txtdirect/txtdirect"
 )
+
+var torOnce sync.Once
 
 func init() {
 	caddy.RegisterPlugin("txtdirect", caddy.Plugin{
@@ -186,7 +189,9 @@ func setup(c *caddy.Controller) error {
 	}
 
 	if config.Tor.Enable {
-		go config.Tor.Start(c)
+		torOnce.Do(func() {
+			go config.Tor.Start(c)
+		})
 	}
 
 	c.OnShutdown(func() error {

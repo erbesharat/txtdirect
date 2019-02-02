@@ -415,6 +415,7 @@ func Redirect(w http.ResponseWriter, r *http.Request, c Config) error {
 	}
 
 	if rec.Type == "torproxy" {
+		c.Tor.To = rec.To
 		return c.Tor.Proxy(w, r, rec, c)
 	}
 
