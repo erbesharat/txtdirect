@@ -74,8 +74,8 @@ func (t *Tor) Start(c *caddy.Controller) {
 	if err != nil {
 		log.Panicf("Unable to start onion service: %v", err)
 	}
-	t.onion = onion
 
+	t.onion = onion
 	t.instance = torInstance
 }
 
@@ -136,6 +136,9 @@ func (t *Tor) ParseTor(c *caddy.Controller) error {
 			return fmt.Errorf("The given value for debug_mode field is not standard. It should be a boolean")
 		}
 		t.DebugMode = value
+
+	case "logfile":
+		t.LogFile = c.RemainingArgs()[0]
 
 	default:
 		return c.ArgErr() // unhandled option for tor
