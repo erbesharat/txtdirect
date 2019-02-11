@@ -3,9 +3,11 @@ package txtdirect
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/mholt/caddy"
 	cproxy "github.com/mholt/caddy/caddyhttp/proxy"
 	"golang.org/x/net/proxy"
+	lumberjack "gopkg.in/natefinch/lumberjack.v2"
 )
 
 // DefaultOnionServicePort is the port used to serve the onion service on
@@ -26,6 +29,7 @@ type Tor struct {
 	DataDir   string
 	Torrc     string
 	DebugMode bool
+	LogFile   string
 
 	instance        *tor.Tor
 	contextCanceler context.CancelFunc
@@ -40,9 +44,25 @@ const (
 )
 
 func (t *Tor) Start(c *caddy.Controller) {
+	var debugger io.Writer
+	if t.DebugMode {
+		if t.LogFile != "" {
+			debugger = &lumberjack.Logger{
+				Filename:   t.LogFile,
+				MaxSize:    100,
+				MaxAge:     14,
+				MaxBackups: 10,
+			}
+		}
+		debugger = os.Stdout
+	}
+
 	torInstance, err := tor.Start(nil, &tor.StartConf{
 		NoAutoSocksPort: true,
 		ExtraArgs:       []string{"--SocksPort", strconv.Itoa(t.Port)},
+		TempDataDirBase: t.DataDir,
+		TorrcFile:       t.Torrc,
+		DebugWriter:     debugger,
 	})
 	if err != nil {
 		log.Panicf("Unable to start Tor: %v", err)
