@@ -22,7 +22,10 @@ const DefaultOnionServicePort = 4242
 type Tor struct {
 	Enable bool
 	// Socks5 proxy port
-	Port int
+	Port      int
+	DataDir   string
+	Torrc     string
+	DebugMode bool
 
 	instance        *tor.Tor
 	contextCanceler context.CancelFunc
@@ -97,9 +100,22 @@ func (t *Tor) ParseTor(c *caddy.Controller) error {
 	case "port":
 		value, err := strconv.Atoi(c.RemainingArgs()[0])
 		if err != nil {
-			return fmt.Errorf("The given value for port field is not standard. It should an integer")
+			return fmt.Errorf("The given value for port field is not standard. It should be an integer")
 		}
 		t.Port = value
+
+	case "datadir":
+		t.DataDir = c.RemainingArgs()[0]
+
+	case "torrc":
+		t.Torrc = c.RemainingArgs()[0]
+
+	case "debug_mode":
+		value, err := strconv.ParseBool(c.RemainingArgs()[0])
+		if err != nil {
+			return fmt.Errorf("The given value for debug_mode field is not standard. It should be a boolean")
+		}
+		t.DebugMode = value
 
 	default:
 		return c.ArgErr() // unhandled option for tor

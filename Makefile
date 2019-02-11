@@ -34,6 +34,7 @@ dependencies:
 	rm -rf $(GOPATH)/src/github.com/gomods/athens/vendor/github.com/spf13/afero
 	go get github.com/spf13/afero
 	go get github.com/prometheus/client_golang/...
+	go get github.com/cretz/bine/tor/...
 
 build: dependencies recipe
 
