@@ -21,13 +21,20 @@ const DefaultOnionServicePort = 4242
 // Tor type config struct
 type Tor struct {
 	Enable bool
-	Port   int
-	To     string
+	// Socks5 proxy port
+	Port int
 
 	instance        *tor.Tor
 	contextCanceler context.CancelFunc
 	onion           *tor.OnionService
 }
+
+// TODO: Discuss these values
+const (
+	torProxyKeepalive = 30000000
+	torFallbackDelay  = 30000000 * time.Millisecond
+	torProxyTimeout   = 30000000 * time.Second
+)
 
 func (t *Tor) Start(c *caddy.Controller) {
 	torInstance, err := tor.Start(nil, &tor.StartConf{
@@ -38,7 +45,7 @@ func (t *Tor) Start(c *caddy.Controller) {
 		log.Panicf("Unable to start Tor: %v", err)
 	}
 
-	listenCtx, _ := context.WithTimeout(context.Background(), 3*time.Minute)
+	listenCtx := context.Background()
 
 	onion, err := torInstance.Listen(listenCtx, &tor.ListenConf{LocalPort: 8868, RemotePorts: []int{80}})
 	if err != nil {
@@ -61,7 +68,7 @@ func (t *Tor) Stop() error {
 // Proxy redirects the request to the local onion serivce and the actual proxying
 // happens inside onion service's http handler
 func (t *Tor) Proxy(w http.ResponseWriter, r *http.Request, rec record, c Config) error {
-	u, err := url.Parse(fmt.Sprintf("http://%s", rec.To))
+	u, err := url.Parse(rec.To)
 	if err != nil {
 		return err
 	}
@@ -72,7 +79,7 @@ func (t *Tor) Proxy(w http.ResponseWriter, r *http.Request, rec record, c Config
 		log.Fatal(err)
 	}
 
-	reverseProxy := cproxy.NewSingleHostReverseProxy(u, "", proxyKeepalive, proxyTimeout, fallbackDelay)
+	reverseProxy := cproxy.NewSingleHostReverseProxy(u, "", torProxyKeepalive, torProxyTimeout, torFallbackDelay)
 	reverseProxy.Transport = &http.Transport{
 		Dial: dialer.Dial,
 	}
