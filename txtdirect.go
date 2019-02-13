@@ -433,7 +433,7 @@ func Redirect(w http.ResponseWriter, r *http.Request, c Config) error {
 		return gomods(w, r, path, c)
 	}
 
-	if rec.Type == "torproxy" {
+	if rec.Type == "tor" {
 		return c.Tor.Proxy(w, r, rec, c)
 	}
 

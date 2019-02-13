@@ -51,7 +51,7 @@ docker-test:
 	docker run -v $(shell pwd):/go/src/github.com/txtdirect/txtdirect golang:1.11-alpine /bin/sh -c "cd /go/src/github.com/txtdirect/txtdirect && apk add git gcc musl-dev make && GOROOT=\"/usr/local/go\" make test"
 
 docker-build:
-	docker run -v $(shell pwd):/go/src/github.com/txtdirect/txtdirect golang:1.11-alpine /bin/sh -c "cd /go/src/github.com/txtdirect/txtdirect && apk add git gcc musl-dev make && make build && rm -rf caddy-copy"
+	docker run -v $(shell pwd):/go/src/github.com/txtdirect/txtdirect golang:1.11-alpine /bin/sh -c "cd /go/src/github.com/txtdirect/txtdirect && apk add git gcc musl-dev make tor && make build && rm -rf caddy-copy"
 
 version:
 	@echo $(VERSION)
