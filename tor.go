@@ -42,7 +42,8 @@ type Tor struct {
 type TorResponse struct {
 	headers    http.Header
 	body       []byte
-	bodyBuffer bytes.Buffer
+	bodyReader bytes.Buffer
+	bodyWriter bytes.Buffer
 	status     int
 }
 
@@ -111,6 +112,7 @@ func (t *Tor) Proxy(w http.ResponseWriter, r *http.Request, rec record, c Config
 	if err != nil {
 		return err
 	}
+	u.Path = r.URL.Path
 
 	// Create a socks5 dialer
 	dialer, err := proxy.SOCKS5("tcp", fmt.Sprintf("127.0.0.1:%d", t.Port), nil, proxy.Direct)
@@ -128,15 +130,21 @@ func (t *Tor) Proxy(w http.ResponseWriter, r *http.Request, rec record, c Config
 		return fmt.Errorf("[txtdirect]: Coudln't proxy the request to the background onion service. %s", err.Error())
 	}
 
+	// Decompress the body based on "Content-Encoding" header and write to a writer buffer
+	if err := tmpResposne.WriteBody(); err != nil {
+		return fmt.Errorf("[txtdirect]: Couldn't write the response body: %s", err.Error())
+	}
+
+	// Replace the URL hosts with the request's host
+	if err := tmpResposne.ReplaceBody(u.Scheme, u.Host, r.Host); err != nil {
+		return fmt.Errorf("[txtdirect]: Couldn't replace urls inside the response body: %s", err.Error())
+	}
+
 	copyHeader(w.Header(), tmpResposne.Header())
 
-	var writer bytes.Buffer
-	reader, err := gzip.NewReader(&tmpResposne.bodyBuffer)
-	defer reader.Close()
-	io.Copy(&writer, reader)
-
-	if _, err := w.Write(writer.Bytes()); err != nil {
-		return fmt.Errorf("[txtdirect]: Couldn't write the response body: %s", err.Error())
+	// Write the final response from the temporary ResponseWriter to the main ResponseWriter
+	if _, err := w.Write(tmpResposne.Body()); err != nil {
+		return fmt.Errorf("[txtdirect]: Couldn't write the temporary response to main response body: %s", err.Error())
 	}
 
 	return nil
@@ -183,25 +191,56 @@ func (t *Tor) SetDefaults() {
 }
 
 // Header returns response headers
-func (r *TorResponse) Header() http.Header {
-	return r.headers
+func (t *TorResponse) Header() http.Header {
+	return t.headers
 }
 
-func (r *TorResponse) Write(body []byte) (int, error) {
+func (t *TorResponse) Write(body []byte) (int, error) {
 	reader := bytes.NewReader(body)
-	pooledIoCopy(&r.bodyBuffer, reader)
-	r.body = body
+	pooledIoCopy(&t.bodyReader, reader)
+	t.body = body
 	return len(body), nil
 }
 
-// Body returns response's body
-func (r *TorResponse) Body() []byte {
-	return r.body
+// Body returns response's body. This method should only get called after WriteBody()
+func (t *TorResponse) Body() []byte {
+	return t.bodyWriter.Bytes()
 }
 
 // WriteHeader Writes the given status code to response
-func (r *TorResponse) WriteHeader(status int) {
-	r.status = status
+func (t *TorResponse) WriteHeader(status int) {
+	t.status = status
+}
+
+func (t *TorResponse) ReplaceBody(scheme, to, host string) error {
+	replacedBody := bytes.Replace(t.bodyWriter.Bytes(), []byte(scheme+"://"+to), []byte(scheme+"://"+host), -1)
+	t.bodyWriter.Reset()
+	if _, err := t.bodyWriter.Write(replacedBody); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (t *TorResponse) WriteBody() error {
+	switch t.Header().Get("Content-Encoding") {
+	case "gzip":
+		reader, err := gzip.NewReader(&t.bodyReader)
+		if err != nil {
+			return err
+		}
+		defer reader.Close()
+		_, err = io.Copy(&t.bodyWriter, reader)
+		if err != nil {
+			return err
+		}
+		t.Header().Del("Content-Encoding")
+	default:
+		_, err := io.Copy(&t.bodyWriter, &t.bodyReader)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 var skipHeaders = map[string]struct{}{
