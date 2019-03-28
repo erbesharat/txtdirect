@@ -7,7 +7,7 @@ steps:
     args: ["build", "-t", "gcr.io/$PROJECT_ID/txtdirect:dev-${_TAG}", "."]
 
 substitutions:
-  _TAG: ${SHORT_SHA} # default value
+  _TAG: ${SHORT_SHA}
 
 images:
   - "gcr.io/$PROJECT_ID/txtdirect:dev-${_TAG}"
