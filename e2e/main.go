@@ -168,11 +168,6 @@ func (d *dockerManager) StartContainers() error {
 				Source: d.cdir + "/" + d.dir,
 				Target: "/e2e",
 			},
-			{
-				Type:   mount.TypeBind,
-				Source: d.gomodpath,
-				Target: "/go/pkg/mod",
-			},
 		},
 		PortBindings: nat.PortMap{
 			"53/tcp": []nat.PortBinding{
@@ -210,11 +205,6 @@ func (d *dockerManager) StartContainers() error {
 				Type:   mount.TypeBind,
 				Source: d.cdir + "/" + d.dir,
 				Target: "/e2e",
-			},
-			{
-				Type:   mount.TypeBind,
-				Source: d.gomodpath,
-				Target: "/go/pkg/mod",
 			},
 		},
 		PortBindings: nat.PortMap{
@@ -286,11 +276,6 @@ func (d *dockerManager) RunTesterContainer() error {
 				Type:   mount.TypeBind,
 				Source: d.cdir + "/" + d.dir,
 				Target: "/e2e",
-			},
-			{
-				Type:   mount.TypeBind,
-				Source: d.gomodpath,
-				Target: "/go/pkg/mod",
 			},
 		},
 	}, &network.NetworkingConfig{
