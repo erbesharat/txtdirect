@@ -3,10 +3,6 @@ language: minimal
 services:
   - docker
 
-cache:
-  directories:
-    - $GOPATH/pkg/mod
-
 before_script:
   - make docker-build
   - docker build -t c.txtdirect.org/txtdirect:0.4.0-dirty .
