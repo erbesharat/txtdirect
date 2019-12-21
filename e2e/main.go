@@ -118,8 +118,9 @@ func (d *dockerManager) StartContainers() error {
 	d.gomodpath = fmt.Sprintf("%s/pkg/mod", os.Getenv("GOPATH"))
 
 	// Create a Docker network for containers
-	_, err = exec.Command("docker", "network", "create", "--ip-range=\"172.20.10.0/24\"", "--subnet=\"172.20.0.0/16\"", "coretxtd").CombinedOutput()
+	out, err := exec.Command("docker", "network", "create", "--ip-range=\"172.20.10.0/24\"", "--subnet=\"172.20.0.0/16\"", "coretxtd").CombinedOutput()
 	if err != nil {
+		log.Println(string(out))
 		return fmt.Errorf("Couldn't create the network adaptor: %s", err.Error())
 	}
 
